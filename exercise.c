@@ -1,4 +1,4 @@
-//it2022134 Exarchou Athos
+/* it2022134 Exarchou Athos */
 
 /* imports */
 #include <stdio.h>
@@ -8,7 +8,6 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <semaphore.h>
-
 
 int main (int argc, char *argv[]) {
 
@@ -39,17 +38,6 @@ int main (int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // /* child semaphore for synchronization */
-    // sem_t *child_sem = sem_open("/child_semaphore", O_CREAT, 0644, 0);
-    // if (child_sem == SEM_FAILED) {
-    //     perror("Error creating child semaphore");
-    //     close(fd);
-    //     sem_close(sem);
-    //     sem_unlink("/my_semaphore");
-    //     return EXIT_FAILURE;
-    // }
-
-
     //creates an array of semaphores for child synchronization
     sem_t *child_sems[childs];
     for (int i = 0; i < childs; i++) {
@@ -78,9 +66,6 @@ int main (int argc, char *argv[]) {
     }
     sem_post(sem); //releases semaphore
 
-    // //parent signals the first child to begin
-    // sem_post(child_sem);
-
     pid_t pid;
     for (int i = 0; i < childs; i++) {
 
@@ -91,8 +76,7 @@ int main (int argc, char *argv[]) {
             close(fd); //closes the file before exiting the child process
             sem_close(sem); //closes the semaphore in the child process
             sem_unlink("/my_semaphore"); //removes the semaphore
-            // sem_close(child_sem);
-            // sem_unlink("/child_semaphore");
+            
             for (int j = 0; j < childs; j++) {
                 char sem_name[20];
                 snprintf(sem_name, sizeof(sem_name), "/child_sem_%d", j);
@@ -102,9 +86,6 @@ int main (int argc, char *argv[]) {
             return EXIT_FAILURE;
         } else if (pid == 0) {
             
-            // if (i > 0) {
-            //     sem_wait(child_sem); //waits for the previous child to finish writing
-            // }
             sem_wait(child_sems[i]);
 
             snprintf(message, sizeof(message), "[CHILD] -> <%d>\n", getpid());
@@ -114,12 +95,6 @@ int main (int argc, char *argv[]) {
                 perror("Error writing to file");
             }
             sem_post(sem); //releases semaphore
-
-            // if (i < childs - 1) {
-            //     sem_post(child_sem); //notifies the next child
-            // }
-            // 
-            // sem_close(sem);
 
             //signals the next child (if any)
             if (i < childs - 1) {
@@ -138,16 +113,8 @@ int main (int argc, char *argv[]) {
     }
 
     for (int i = 0; i < childs; i++) {
-        //sem_wait(child_sem); //waits for the previous child to finish
-        //waitpid(-1, NULL, 0);
         wait(NULL);
     }
-
-    // sem_close(sem); //closes the semaphore in the parent process
-    // close(fd); //closes the file in the parent process
-
-    // sem_unlink("/my_semaphore"); //removes the semaphore
-    // sem_unlink("/child_semaphore");
 
     //cleans up
     sem_close(sem);
