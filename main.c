@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <semaphore.h>
+#include <signal.h>
 
 /* constants for readability */
 #define READ 0
@@ -20,6 +21,13 @@ typedef struct {
     char child_name[20]; //child name
     int is_idle; //indicates whether the child is idle
 } ChildInfo;
+
+/* global variables */
+ChildInfo *children = NULL; //child information
+sem_t *sem = NULL; //semaphore
+sem_t **child_sems = NULL; //array of semaphores for child synchronization
+int num_children = 0; //number of children
+int fd = -1; //file descriptor
 
 /* resource cleanup function */
 void cleanup_resources(ChildInfo *children, int num_children, sem_t *sem, int fd, sem_t **child_sems) {
@@ -43,6 +51,28 @@ void cleanup_resources(ChildInfo *children, int num_children, sem_t *sem, int fd
     }
 }
 
+/* signal handler function for termination signals */
+void signalHandler(int sig) {
+    printf("Parent received signal <%d>. Shutting down...\n", sig);
+
+    /* when a signal is received, sends "exit" to all children */
+    for (int i = 0; i < num_children; i++) {
+        if (write(children[i].to_child[WRITE], "exit", strlen("exit")) == -1) {
+            perror("Error writing exit to pipe");
+        }
+    }
+
+    /* waits for all children to finish their tasks */
+    for (int i = 0; i < num_children; i++) {
+        waitpid(children[i].child_pid, NULL, 0);
+    }
+
+    /* cleanup */
+    cleanup_resources(children, num_children, sem, fd, child_sems);
+    printf("All children have been terminated.\n");
+    exit(EXIT_SUCCESS);
+}
+
 int main (int argc, char *argv[]) {
 
     char *filename = argv[1];
@@ -56,7 +86,7 @@ int main (int argc, char *argv[]) {
     }
     printf("File name: '%s'\nNumber of child processes: '%d'\n", filename, num_children);
 
-    int fd = open(filename, O_CREAT | O_RDWR | O_TRUNC, 0644); //opens/creates, clears file
+    fd = open(filename, O_CREAT | O_RDWR | O_TRUNC, 0644); //opens/creates, clears file
     //checks for errors
     if (fd == -1) {
         perror("Error opening file. Exiting...\n");
@@ -64,7 +94,7 @@ int main (int argc, char *argv[]) {
     }
 
     /* semaphore initialization */
-    sem_t *sem = sem_open("/my_semaphore", O_CREAT, 0644, 1); //initialized to 1
+    sem = sem_open("/my_semaphore", O_CREAT, 0644, 1); //initialized to 1
     if (sem == SEM_FAILED) {
         perror("Error creating semaphore");
         cleanup_resources(NULL, 0, NULL, fd, NULL);
@@ -72,15 +102,21 @@ int main (int argc, char *argv[]) {
     }
 
     /* allocates memory for children */
-    ChildInfo *children = malloc(sizeof(ChildInfo) * num_children);
+    children = malloc(sizeof(ChildInfo) * num_children);
     if (!children) {
-        perror("Memory allocation failed");
+        perror("Memory allocation failed for children");
         cleanup_resources(NULL, 0, sem, fd, NULL);
         return EXIT_FAILURE;
     }
 
+    child_sems = malloc(num_children * sizeof(sem_t *));
+    if (!child_sems) {
+        perror("Memory allocation failed for child semaphores");
+        cleanup_resources(children, 0, sem, fd, NULL);
+        return EXIT_FAILURE;
+    }
+
     /* creates an array of semaphores for child synchronization */
-    sem_t *child_sems[num_children];
     for (int i = 0; i < num_children; i++) {
         char sem_name[20];
         snprintf(sem_name, sizeof(sem_name), "/child_sem_%d", i);
@@ -121,6 +157,7 @@ int main (int argc, char *argv[]) {
                 sem_wait(child_sems[i]);
                 char buffer[100];
                 ssize_t bytes_read = read(children[i].to_child[READ], buffer, sizeof(buffer) - 1);
+                
                 if (bytes_read > 0) {
                     buffer[bytes_read] = '\0';
                     if (strcmp(buffer, "exit") == 0) {
@@ -159,6 +196,10 @@ int main (int argc, char *argv[]) {
         }
     }
     
+    /* sets up signal handler for graceful shutdown */
+    signal(SIGINT, signalHandler); //handles Ctrl-C
+    signal(SIGTERM, signalHandler); //handles termination signals
+
     int task_counter = 0;
     char task[100];
     while (task_counter < num_children * 2) {
