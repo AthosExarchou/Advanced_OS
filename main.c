@@ -18,6 +18,7 @@ typedef struct {
     int to_parent[2]; //pipe from child to parent
     pid_t child_pid; //child PID
     char child_name[20]; //child name
+    int is_idle; //indicates whether the child is idle
 } ChildInfo;
 
 /* resource cleanup function */
@@ -102,6 +103,7 @@ int main (int argc, char *argv[]) {
         }
 
         snprintf(children[i].child_name, sizeof(children[i].child_name), "Child %d", i + 1);
+        children[i].is_idle = 1; //all children are idle at the start
 
         pid_t pid = fork(); //new child process
         if (pid < 0) {
@@ -139,7 +141,6 @@ int main (int argc, char *argv[]) {
                     if (write(children[i].to_parent[WRITE], "done", strlen("done")) == -1) {
                         perror("Error sending acknowledgment to parent");
                     }
-            
                 } else {
                     perror("Error reading from pipe");
                 }
@@ -157,31 +158,31 @@ int main (int argc, char *argv[]) {
             close(children[i].to_parent[WRITE]);
         }
     }
-
-    /* parent sends and receives messages in a loop */
-    for (int round = 0; round < 2; round++) { // sends messages in 2 rounds
+    
+    int task_counter = 0;
+    char task[100];
+    while (task_counter < num_children * 2) {
         for (int i = 0; i < num_children; i++) {
-            char message[100];
-            snprintf(message, sizeof(message), "Hello child, I am your father and I call you: %s (Round %d).",
-                     children[i].child_name, round + 1);
-
-            if (write(children[i].to_child[WRITE], message, strlen(message)) == -1) {
-                perror("Error writing to pipe");
-                cleanup_resources(children, i + 1, sem, fd, child_sems);
-                return EXIT_FAILURE;
-            }
-            sem_post(child_sems[i]); //lets the current child proceed
-            char buffer[10];
-            ssize_t bytes_read = read(children[i].to_parent[READ], buffer, sizeof(buffer) - 1);
-            if (bytes_read > 0) {
-                buffer[bytes_read] = '\0';
-                if (strcmp(buffer, "done") == 0) {
-                    printf("%s has completed its task for round %d.\n", children[i].child_name, round + 1);
+            if (children[i].is_idle) {
+                snprintf(task, sizeof(task), "Task %d", task_counter + 1);
+                if (write(children[i].to_child[WRITE], task, strlen(task)) == -1) {
+                    perror("Error writing task to pipe");
                 }
-            } else {
-                perror("Error reading acknowledgment from child");
-                cleanup_resources(children, num_children, sem, fd, child_sems); //cleans up if read fails
-                return EXIT_FAILURE;
+                sem_post(child_sems[i]);
+                children[i].is_idle = 0;
+
+                char buffer[10];
+                ssize_t bytes_read = read(children[i].to_parent[READ], buffer, sizeof(buffer) - 1);
+                if (bytes_read > 0) {
+                    buffer[bytes_read] = '\0';
+                    if (strcmp(buffer, "done") == 0) {
+                        printf("%s completed: %s\n", children[i].child_name, task);
+                        children[i].is_idle = 1;
+                    }
+                } else {
+                    perror("Error reading acknowledgment");
+                }
+                task_counter++;
             }
         }
     }
