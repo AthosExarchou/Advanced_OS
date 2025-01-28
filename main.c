@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <semaphore.h>
 #include <signal.h>
+#include <time.h>
 
 /* constants for readability */
 #define READ 0
@@ -165,7 +166,10 @@ int main (int argc, char *argv[]) {
                     }
 
                     printf("<CHILD %d> Received message: %s\n", i + 1, buffer);
-                    sleep(1);
+
+                    srand(time(NULL)); //randomization
+                    int timer = rand() % 3 + 1;
+                    sleep(timer); //sleeps between 1 and 3 seconds
 
                     /* child process writes to file */
                     char message[100];
@@ -246,15 +250,3 @@ int main (int argc, char *argv[]) {
     printf("Tasks completed.\n");
     return EXIT_SUCCESS;
 }
-
-/*
-** Compile the program by terminal:
-**    gcc -Wall -o main main.c
-**
-** Execute the program:
-**    ./main <file_name> <#processes>
-**
-** Where:
-**    <file_name>  : Name of the file to be created or opened.
-**    <#processes> : Positive integer representing the number of child processes.
-*/
