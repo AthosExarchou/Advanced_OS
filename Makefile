@@ -8,7 +8,7 @@ SRCS = main.c
 
 #default values for runtime variables
 OUTPUT_FILE ?= output.txt
-NUM_PROCESSES ?= 10
+NUM_PROCESSES ?= 5
 
 #default target to build the program
 all: $(TARGET)

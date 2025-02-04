@@ -1,6 +1,6 @@
 /* it2022134 Exarchou Athos */
 
-/* imports */
+/* Imports */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,9 +11,29 @@
 #include <signal.h>
 #include <time.h>
 
-/* constants for readability */
+/* Constants for readability */
 #define READ 0
 #define WRITE 1
+
+/* Structs */
+typedef enum {
+    GENERAL_WORKER, //handles standard tasks
+    IO_WORKER, //handles IO operations
+    COMPUTATION_WORKER, //handles CPU-heavy tasks
+    MIXED_WORKER //can do both IO & computation
+} WorkerType;
+
+typedef enum {
+    TASK_GENERAL,
+    TASK_IO,
+    TASK_COMPUTATION
+} TaskType;
+
+typedef struct {
+    int id;
+    TaskType type;
+    char data[100]; //task details
+} Task;
 
 typedef struct {
     int to_child[2]; //pipe from parent to child
@@ -21,14 +41,17 @@ typedef struct {
     pid_t child_pid; //child PID
     char child_name[20]; //child name
     int is_idle; //indicates whether the child is idle
+    WorkerType type; //type of worker
 } ChildInfo;
 
-/* global variables */
+/* Global variables */
 ChildInfo *children = NULL; //child information
 sem_t *sem = NULL; //semaphore
 sem_t **child_sems = NULL; //array of semaphores for child synchronization
 int num_children = 0; //number of children
 int fd = -1; //file descriptor
+
+/* Functions */
 
 /* resource cleanup function */
 void cleanup_resources(ChildInfo *children, int num_children, sem_t *sem, int fd, sem_t **child_sems) {
@@ -74,6 +97,25 @@ void signalHandler(int sig) {
     exit(EXIT_SUCCESS);
 }
 
+/* task distributor */
+void distribute_task(int child_index, Task task) {
+        if (children[child_index].is_idle) {
+            /* sends task data to the child process */
+            if (write(children[child_index].to_child[WRITE], task.data, strlen(task.data)) == -1) {
+                perror("Error writing task to pipe");
+                return;
+            }
+            sem_post(child_sems[child_index]); //signals the child process
+
+            children[child_index].is_idle = 0; //child becomes busy
+
+            printf("Assigned %s to %s (PID: %d)\n", task.data, children[child_index].child_name, children[child_index].child_pid);
+            return;
+        }
+    printf("Worker not available for task: %s\n", task.data);
+}
+
+/* Main program */
 int main (int argc, char *argv[]) {
 
     char *filename = argv[1];
@@ -130,7 +172,7 @@ int main (int argc, char *argv[]) {
             return EXIT_FAILURE;
         }
     }
-    
+
     /* pipe creation */
     for (int i = 0; i < num_children; i++) {
         if (pipe(children[i].to_child) == -1 || pipe(children[i].to_parent) == -1) {
@@ -139,8 +181,16 @@ int main (int argc, char *argv[]) {
             return EXIT_FAILURE;
         }
 
+        /* stores each child's name into the corresponding child */
         snprintf(children[i].child_name, sizeof(children[i].child_name), "Child %d", i + 1);
+
         children[i].is_idle = 1; //all children are idle at the start
+
+        /* assigns a worker type to each child (round-robin) */
+        children[i].type = (i % 4 == 0) ? COMPUTATION_WORKER :
+                           (i % 4 == 1) ? IO_WORKER :
+                           (i % 4 == 2) ? MIXED_WORKER :
+                                          GENERAL_WORKER;
 
         pid_t pid = fork(); //new child process
         if (pid < 0) {
@@ -168,8 +218,27 @@ int main (int argc, char *argv[]) {
                     printf("<CHILD %d> Received message: %s\n", i + 1, buffer);
 
                     srand(time(NULL)); //randomization
-                    int timer = rand() % 3 + 1;
-                    sleep(timer); //sleeps between 1 and 3 seconds
+                    int timer;
+                    /* children sleep depending on their role */
+                    switch (children[i].type) {
+                        case GENERAL_WORKER:
+                            timer = rand() % 3 + 1; //1-3 sec
+                            break;
+                        case IO_WORKER:
+                            timer = rand() % 6 + 2; //2-7 sec
+                            break;
+                        case COMPUTATION_WORKER:
+                            timer = rand() % 5 + 3; //3-7 sec
+                            break;
+                        case MIXED_WORKER:
+                            timer = rand() % 4 + 2; //2-5 sec
+                            break;
+                        default:
+                            timer = 2; //default timer for invalid
+                    }
+
+                    printf("<CHILD %d> Sleeping for %d seconds...\n", i + 1, timer);
+                    sleep(timer);
 
                     /* child process writes to file */
                     char message[100];
@@ -205,23 +274,31 @@ int main (int argc, char *argv[]) {
     signal(SIGTERM, signalHandler); //handles termination signals
 
     int task_counter = 0;
-    char task[100];
     while (task_counter < num_children * 2) {
         for (int i = 0; i < num_children; i++) {
             if (children[i].is_idle) {
-                snprintf(task, sizeof(task), "Task %d", task_counter + 1);
-                if (write(children[i].to_child[WRITE], task, strlen(task)) == -1) {
-                    perror("Error writing task to pipe");
+
+                Task new_task;
+                new_task.id = task_counter + 1;
+                snprintf(new_task.data, sizeof(new_task.data), "Task %d", new_task.id);
+
+                if (new_task.id % 3 == 0) {
+                    new_task.type = TASK_COMPUTATION;
+                } else if (new_task.id % 2 == 0) {
+                    new_task.type = TASK_IO;
+                } else {
+                    new_task.type = TASK_GENERAL;
                 }
-                sem_post(child_sems[i]);
-                children[i].is_idle = 0;
+
+                /* task distribution */
+                distribute_task(i, new_task);
 
                 char buffer[10];
                 ssize_t bytes_read = read(children[i].to_parent[READ], buffer, sizeof(buffer) - 1);
                 if (bytes_read > 0) {
                     buffer[bytes_read] = '\0';
                     if (strcmp(buffer, "done") == 0) {
-                        printf("%s completed: %s\n", children[i].child_name, task);
+                        printf("%s completed: %s\n", children[i].child_name, new_task.data);
                         children[i].is_idle = 1;
                     }
                 } else {
