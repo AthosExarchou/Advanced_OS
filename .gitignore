@@ -1,6 +1,5 @@
 .vscode/
 *.pdf
-*/
 file*
 exc*
-main
+AdvOS_exc_separated_in_parts/
