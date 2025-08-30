@@ -183,5 +183,10 @@ make -f Makefile.add clean
 ```
 
 ## Author
-Exarchou Athos
-it2022134@hua.gr
+
+- **Name**: Exarchou Athos
+- **Student ID**: it2022134
+- **Email**: it2022134@hua.gr, athosexarhou@gmail.com
+
+## License
+This project is licensed under the MIT License.
