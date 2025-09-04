@@ -169,7 +169,7 @@ Explementary execution:
 - `add_svc.c`: Generated RPC service skeleton for the server.
 - `add_xdr.c`: XDR (External Data Representation) serialization/deserialization logic.
 - `README.md`: Documentation and instructions for running the project.
-- and many more...
+- and more...
 
 ### Cleanup
 To remove compiled binaries:
