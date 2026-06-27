@@ -1,8 +1,20 @@
 # RPC Project
+[![](https://img.shields.io/badge/C-00599C?style=for-the-badge&logo=c&logoColor=white)](https://en.cppreference.com/w/c)
+[![](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://www.kernel.org/)
+[![](https://img.shields.io/badge/RPC-SunRPC-blue?style=for-the-badge)](https://en.wikipedia.org/wiki/Sun_RPC)
+[![](https://img.shields.io/badge/POSIX-IPC-green?style=for-the-badge)](https://pubs.opengroup.org/onlinepubs/9699919799/)
+![](https://img.shields.io/badge/Processes-Multiprocessing-blue?style=for-the-badge)
+![](https://img.shields.io/badge/Semaphores-Synchronization-orange?style=for-the-badge)
+![](https://img.shields.io/badge/Signals-SIGINT%20%7C%20SIGTERM-red?style=for-the-badge)
+![](https://img.shields.io/badge/Worker%20Pool-Architecture-purple?style=for-the-badge)
+[![](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
+[![](https://img.shields.io/badge/GCC-F05032?style=for-the-badge&logo=gnu&logoColor=white)](https://gcc.gnu.org/)
+[![](https://img.shields.io/badge/Make-064F8C?style=for-the-badge&logo=cmake&logoColor=white)](https://www.gnu.org/software/make/)
+[![](https://img.shields.io/badge/status-stable-green?style=for-the-badge)](https://github.com/AthosExarchou/Advanced_OS)
+[![](https://img.shields.io/github/license/AthosExarchou/Advanced_OS.svg?style=for-the-badge)](https://github.com/AthosExarchou/Advanced_OS/blob/master/LICENSE)
 
 ## Project Overview
-This project is an exercise for the Advanced Operating Systems course at Harokopio
-University of Athens, Dept. of Informatics and Telematics. It implements a worker pool paradigm using processes and pipes for inter-process communication. The parent process distributes tasks to child processes, which execute them and respond with results. The program ensures proper synchronization using semaphores and supports a graceful shutdown on receiving termination signals (e.g., SIGINT or SIGTERM). Additionally, the project incorporates Remote Procedure Call (RPC) functionality to facilitate client-server communication, allowing remote execution of operations (currently, only the addition of 5 numbers is supported).
+This project is an exercise for the Advanced Operating Systems course at [Harokopio University of Athens – Dept. of Informatics and Telematics](https://dit.hua.gr). It implements a worker pool paradigm using processes and pipes for inter-process communication. The parent process distributes tasks to child processes, which execute them and respond with results. The program ensures proper synchronization using semaphores and supports a graceful shutdown on receiving termination signals (e.g., SIGINT or SIGTERM). Additionally, the project incorporates Remote Procedure Call (RPC) functionality to facilitate client-server communication, allowing remote execution of operations (currently, only the addition of 5 numbers is supported).
 
 ### Features
 - Task distribution to child processes.
